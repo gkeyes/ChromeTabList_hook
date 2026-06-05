@@ -11,6 +11,9 @@
             android:name="xposeddescription"
             android:value="Chrome Tab List View Mod - Force single column list layout, hide thumbnails" />
         <meta-data
+            android:name="xposedscope"
+            android:value="com.android.chrome" />
+        <meta-data
             android:name="xposedminversion"
             android:value="101" />
     </application>
