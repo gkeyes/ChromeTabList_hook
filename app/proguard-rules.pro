@@ -1,2 +1,2 @@
 -keep class com.operit.chrometablist.ModuleMain { *; }
--dontwarn de.robv.android.xposed.**
+-dontwarn io.github.libxposed.api.**

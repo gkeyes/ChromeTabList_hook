@@ -2,6 +2,7 @@ package com.operit.chrometablist;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -9,12 +10,11 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import io.github.libxposed.api.XposedInterface.ExceptionMode;
+import io.github.libxposed.api.XposedModule;
+import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -30,8 +30,9 @@ import java.util.WeakHashMap;
  * then applies layout/style patches that persist across scrolling via
  * OnLayoutChangeListener.
  */
-public class ModuleMain implements IXposedHookLoadPackage {
+public class ModuleMain extends XposedModule {
 
+    private static final String TAG = "ChromeTabList";
     private static final String CHROME_PKG = "com.android.chrome";
     private static final String TAB_RV_ID_NAME = "tab_list_recycler_view";
 
@@ -46,27 +47,31 @@ public class ModuleMain implements IXposedHookLoadPackage {
     private int mLastW = -1, mLastCount = -1;
 
     @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        if (!CHROME_PKG.equals(lpparam.packageName)) return;
+    public void onPackageLoaded(PackageLoadedParam param) {
+        if (!CHROME_PKG.equals(param.getPackageName())) return;
 
-        XposedBridge.log("[ChromeTabList] ========== v22 Final Release ==========");
+        logInfo("API 101 module loaded in " + param.getPackageName());
 
-        // Hook ViewGroup.addView(View, int, ViewGroup.LayoutParams)
         try {
-            XposedHelpers.findAndHookMethod(
-                ViewGroup.class,
+            Method addViewMethod = ViewGroup.class.getDeclaredMethod(
                 "addView",
-                View.class, Integer.TYPE, ViewGroup.LayoutParams.class,
-                new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) {
-                        View child = (View) param.args[0];
-                        checkForTarget(child);
+                View.class,
+                Integer.TYPE,
+                ViewGroup.LayoutParams.class
+            );
+            hook(addViewMethod)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    Object child = chain.getArg(0);
+                    if (child instanceof View) {
+                        checkForTarget((View) child);
                     }
+                    return result;
                 });
-            XposedBridge.log("[ChromeTabList] addView hook active");
+            logInfo("addView hook active");
         } catch (Throwable t) {
-            XposedBridge.log("[ChromeTabList] addView error: " + t);
+            logError("addView hook error", t);
         }
     }
 
@@ -81,7 +86,7 @@ public class ModuleMain implements IXposedHookLoadPackage {
                 mTargetRvid = view.getResources().getIdentifier(
                     TAB_RV_ID_NAME, "id", CHROME_PKG);
                 if (mTargetRvid == 0) return;
-                XposedBridge.log("[ChromeTabList] target ID = " + mTargetRvid);
+                logInfo("target ID = " + mTargetRvid);
             }
 
             ViewGroup rv = null;
@@ -92,7 +97,7 @@ public class ModuleMain implements IXposedHookLoadPackage {
                 if (found instanceof ViewGroup) rv = (ViewGroup) found;
             }
             if (rv != null && !mPatchedViews.contains(rv)) {
-                XposedBridge.log("[ChromeTabList] FOUND! patching...");
+                logInfo("FOUND! patching...");
                 mPatchedViews.add(rv);
                 final ViewGroup finalRv = rv;
                 new android.os.Handler(android.os.Looper.getMainLooper())
@@ -107,7 +112,7 @@ public class ModuleMain implements IXposedHookLoadPackage {
      */
     private void patchRecyclerView(final ViewGroup rv) {
         try {
-            XposedBridge.log("[ChromeTabList] patch w=" + rv.getWidth() + " h=" + rv.getHeight());
+            logInfo("patch w=" + rv.getWidth() + " h=" + rv.getHeight());
             mLastW = -1;
             mLastCount = -1;
 
@@ -126,9 +131,9 @@ public class ModuleMain implements IXposedHookLoadPackage {
                 rv.post(() -> mModifying = false);
             });
 
-            XposedBridge.log("[ChromeTabList] LayoutChangeListener ok");
+            logInfo("LayoutChangeListener ok");
         } catch (Throwable t) {
-            XposedBridge.log("[ChromeTabList] patch ERROR: " + t);
+            logError("patch error", t);
         }
     }
 
@@ -136,7 +141,7 @@ public class ModuleMain implements IXposedHookLoadPackage {
         try {
             int count = rv.getChildCount();
             for (int i = 0; i < count; i++) modifyItem(rv.getChildAt(i));
-            XposedBridge.log("[ChromeTabList] Modified " + count + " children");
+            logInfo("Modified " + count + " children");
         } catch (Throwable ignored) {}
     }
 
@@ -223,15 +228,23 @@ public class ModuleMain implements IXposedHookLoadPackage {
             mTitleId = res.getIdentifier("tab_title", "id", CHROME_PKG);
             mContentViewId = res.getIdentifier("content_view", "id", CHROME_PKG);
             mResolved = true;
-            XposedBridge.log("[ChromeTabList] Resolved IDs: thumbnail=" + mThumbnailId
+            logInfo("Resolved IDs: thumbnail=" + mThumbnailId
                 + " title=" + mTitleId + " contentView=" + mContentViewId);
         } catch (Throwable e) {
-            XposedBridge.log("[ChromeTabList] resolveResources error: " + e);
+            logError("resolveResources error", e);
         }
     }
 
     /** Convert dp to px using system display metrics. */
     private int dpToPx(int dp) {
         return (int) (dp * Resources.getSystem().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void logInfo(String msg) {
+        log(Log.INFO, TAG, msg);
+    }
+
+    private void logError(String msg, Throwable tr) {
+        log(Log.ERROR, TAG, msg, tr);
     }
 }
