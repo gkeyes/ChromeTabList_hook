@@ -5,13 +5,29 @@
  android {
      namespace = "com.operit.chrometablist"
      compileSdk = 34
+     val releaseKeystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+     val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: ""
+     val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "chrometablist"
+     val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: releaseStorePassword
 
      defaultConfig {
          applicationId = "com.operit.chrometablist"
          minSdk = 27
          targetSdk = 34
-         versionCode = 2
-         versionName = "1.0.1"
+         versionCode = 3
+         versionName = "1.0.2"
+     }
+
+     signingConfigs {
+         create("release") {
+             if (!releaseKeystorePath.isNullOrBlank()) {
+                 storeFile = file(releaseKeystorePath)
+             }
+             storeType = "pkcs12"
+             storePassword = releaseStorePassword
+             keyAlias = releaseKeyAlias
+             keyPassword = releaseKeyPassword
+         }
      }
 
      buildTypes {
@@ -20,6 +36,7 @@
          }
          release {
              isMinifyEnabled = false
+             signingConfig = signingConfigs.getByName("release")
          }
      }
      compileOptions {

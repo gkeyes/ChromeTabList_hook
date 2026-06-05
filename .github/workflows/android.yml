@@ -37,13 +37,24 @@ jobs:
         with:
           gradle-version: "9.1.0"
 
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Decode release keystore
+        run: |
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/chrometablist-release.p12"
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+
+      - name: Build release APK
+        run: gradle --no-daemon assembleRelease
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/chrometablist-release.p12
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
 
       - name: Prepare artifact
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/ChromeTabList_hook.apk
+          cp app/build/outputs/apk/release/app-release.apk dist/ChromeTabList_hook.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

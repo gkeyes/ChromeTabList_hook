@@ -19,7 +19,7 @@ sent to the background and later rebuilds the tab switcher view.
 
 ## Build
 
-GitHub Actions builds the debug APK on every push to `main` and on version tags.
+GitHub Actions builds the release APK on every push to `main` and on version tags.
 Pushing a tag such as `v1.0.0` also creates a GitHub Release and uploads the APK.
 
 The workflow uses:
@@ -29,5 +29,7 @@ The workflow uses:
 - Android Gradle Plugin 9.0.0
 - Android SDK platform 34
 
-The uploaded APK is the debug variant, which is signed by the Android build
-tools and can be installed for module testing.
+Release APKs from `v1.0.2` onward are signed with the same release keystore from
+GitHub Actions secrets, so later versions can be installed over earlier
+fixed-signed releases. Moving from `v1.0.0` or `v1.0.1` may require uninstalling
+once because those APKs used CI debug signing.
