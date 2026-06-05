@@ -9,6 +9,7 @@ Xposed module for Chrome Android tab switcher compact mode.
 - Hides tab thumbnails.
 - Forces each visible tab item to a compact height.
 - Vertically centers the tab title area.
+- Recommends only `com.android.chrome` as the LSPosed scope.
 
 ## Fix Included
 
