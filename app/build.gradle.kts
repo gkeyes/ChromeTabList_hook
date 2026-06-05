@@ -14,8 +14,8 @@
          applicationId = "com.operit.chrometablist"
          minSdk = 27
          targetSdk = 34
-         versionCode = 3
-         versionName = "1.0.2"
+         versionCode = 4
+         versionName = "1.0.3"
      }
 
      signingConfigs {
@@ -35,13 +35,24 @@
              isMinifyEnabled = false
          }
          release {
-             isMinifyEnabled = false
+             isMinifyEnabled = true
+             isShrinkResources = true
+             proguardFiles(
+                 getDefaultProguardFile("proguard-android-optimize.txt"),
+                 "proguard-rules.pro"
+             )
              signingConfig = signingConfigs.getByName("release")
          }
      }
      compileOptions {
          sourceCompatibility = JavaVersion.VERSION_11
          targetCompatibility = JavaVersion.VERSION_11
+     }
+
+     packaging {
+         resources {
+             excludes += setOf("kotlin/**", "META-INF/*.kotlin_module")
+         }
      }
  }
 
