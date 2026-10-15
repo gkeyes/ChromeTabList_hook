@@ -6,6 +6,7 @@ on:
       - main
     tags:
       - "v*"
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -28,6 +29,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The default package list includes the removed "tools" package.
+          packages: platform-tools
 
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-34" "build-tools;36.0.0"
@@ -37,16 +41,26 @@ jobs:
         with:
           gradle-version: "9.1.0"
 
+      # Pull requests (especially from forks) may not have access to the signing
+      # secrets; they build an unsigned APK instead. Other events still require them.
       - name: Decode release keystore
         run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              echo "No signing keystore available; building unsigned APK."
+              exit 0
+            fi
+            echo "::error::RELEASE_KEYSTORE_BASE64 secret is not set."
+            exit 1
+          fi
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/chrometablist-release.p12"
+          echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/chrometablist-release.p12" >> "$GITHUB_ENV"
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
 
       - name: Build release APK
         run: gradle --no-daemon assembleRelease
         env:
-          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/chrometablist-release.p12
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
@@ -54,7 +68,12 @@ jobs:
       - name: Prepare artifact
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk dist/ChromeTabList_hook.apk
+          apk_dir=app/build/outputs/apk/release
+          if [ -f "$apk_dir/app-release.apk" ]; then
+            cp "$apk_dir/app-release.apk" dist/ChromeTabList_hook.apk
+          else
+            cp "$apk_dir/app-release-unsigned.apk" dist/ChromeTabList_hook.apk
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -63,7 +82,7 @@ jobs:
           path: dist/ChromeTabList_hook.apk
 
       - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/ChromeTabList_hook.apk
