@@ -21,6 +21,8 @@ sent to the background and later rebuilds the tab switcher view.
 
 GitHub Actions builds the release APK on every push to `main` and on version tags.
 Pushing a tag such as `v1.0.0` also creates a GitHub Release and uploads the APK.
+Pull requests are built too; when the signing secrets are not available the PR
+build produces an unsigned APK, and it never creates a release.
 
 The workflow uses:
 
